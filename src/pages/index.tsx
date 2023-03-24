@@ -1,11 +1,106 @@
 import Head from 'next/head'
-import Image from 'next/image'
 import { Inter } from 'next/font/google'
-import styles from '~/styles/Home.module.css'
+import React, { useState, useEffect, useRef } from 'react';
+import { parseLogs, TICEvent, tokenizeLogs } from '~/lib/commslog-decoder';
 
 const inter = Inter({ subsets: ['latin'] })
 
+interface FileInputProps {
+  onFileLoaded: (data: Uint8Array) => void;
+}
+
+function FileInput({ onFileLoaded }: FileInputProps) {
+  const [file, setFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const arrayBuffer = reader.result as ArrayBuffer;
+        const uInt8Array = new Uint8Array(arrayBuffer);
+        onFileLoaded(uInt8Array);
+      };
+      reader.readAsArrayBuffer(file);
+    }
+  }, [file, onFileLoaded]);
+
+  const handleButtonClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      setFile(event.target.files[0]);
+    }
+  };
+
+  const handleDrop = (event: React.DragEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const file = event.dataTransfer.files[0];
+    setFile(file);
+  };
+
+  const handleDragOver = (event: React.DragEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  return (
+    <div className='upload-button'>
+      <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
+      <button
+        onClick={handleButtonClick}
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        style={{ cursor: 'pointer' }}
+      >
+        Select File
+      </button>
+    </div>
+  );
+}
+
+function humanReadableUARTCommand(command: string, set: boolean) {
+  const [start, commandType, ...args] = command.split(':');
+  if (start !== '#')
+    return 'Invalid command format start'
+  const end = args.pop();
+  if (end !== '$\n')
+    return 'Invalid command format end'
+  const typeName = 
+    commandType === 'ME' ? 'Emergency Mode' : 
+    commandType === 'MF' ? 'Flashlight Mode' : 
+    commandType === 'MM' ? 'Mood Mode' : 
+    'Invalid Mode';
+
+  if (args.length === 0 && !set)
+    return `Student no. ${commandType}`
+
+  if (args.length === 0)
+    return `Requesting State of ${typeName}`;
+  
+  const [state, param1, param2] = args;
+  if ((commandType === 'MF' || commandType === 'ME') && state === '000')
+    return `${set ? 'Setting' : 'Currently in'} ${typeName} ${set ? 'to' : 'with LED'} off`;
+  if (commandType === 'MF')
+    return `${set ? 'Setting' : 'Currently in'} ${typeName} ${set ? 'to' : 'with'} ${state} intensity`;
+  if (commandType === 'ME')
+    return `${set ? 'Setting' : 'Currently in'} ${typeName} ${set ? 'to' : 'with'} ${state} intensity, ${param1 === '000' ? 'morse mode with message ' + (param2  === '000' ? 'kept the same' : 'set to ' + JSON.stringify(param2)) : 'strobe mode with on time of ' + param1 + 'ms'}`;
+  if (commandType === 'MM')
+    return `${set ? 'Setting' : 'Currently in'} ${typeName} ${set ? 'to' : 'with'} RGB(${args.join(', ')})`;
+}
+
 export default function Home() {
+  const [ logs, setLogs ] = useState<TICEvent[]>([]); 
+
+  function handleFileLoaded(data: Uint8Array) {
+    setLogs(parseLogs(tokenizeLogs(data)));
+  }
+
   return (
     <>
       <Head>
@@ -14,109 +109,45 @@ export default function Home() {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
-      <main className={styles.main}>
-        <div className={styles.description}>
-          <p>
-            Get started by editing&nbsp;
-            <code className={styles.code}>src/pages/index.tsx</code>
-          </p>
-          <div>
-            <a
-              href="https://vercel.com?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              By{' '}
-              <Image
-                src="/vercel.svg"
-                alt="Vercel Logo"
-                className={styles.vercelLogo}
-                width={100}
-                height={24}
-                priority
-              />
-            </a>
-          </div>
-        </div>
-
-        <div className={styles.center}>
-          <Image
-            className={styles.logo}
-            src="/next.svg"
-            alt="Next.js Logo"
-            width={180}
-            height={37}
-            priority
-          />
-          <div className={styles.thirteen}>
-            <Image
-              src="/thirteen.svg"
-              alt="13"
-              width={40}
-              height={31}
-              priority
-            />
-          </div>
-        </div>
-
-        <div className={styles.grid}>
-          <a
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className={styles.card}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <h2 className={inter.className}>
-              Docs <span>-&gt;</span>
-            </h2>
-            <p className={inter.className}>
-              Find in-depth information about Next.js features and&nbsp;API.
-            </p>
-          </a>
-
-          <a
-            href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className={styles.card}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <h2 className={inter.className}>
-              Learn <span>-&gt;</span>
-            </h2>
-            <p className={inter.className}>
-              Learn about Next.js in an interactive course with&nbsp;quizzes!
-            </p>
-          </a>
-
-          <a
-            href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className={styles.card}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <h2 className={inter.className}>
-              Templates <span>-&gt;</span>
-            </h2>
-            <p className={inter.className}>
-              Discover and deploy boilerplate example Next.js&nbsp;projects.
-            </p>
-          </a>
-
-          <a
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className={styles.card}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <h2 className={inter.className}>
-              Deploy <span>-&gt;</span>
-            </h2>
-            <p className={inter.className}>
-              Instantly deploy your Next.js site to a shareable URL
-              with&nbsp;Vercel.
-            </p>
-          </a>
-        </div>
+      <main>
+        <h1 style={inter.style}>
+          TIC commslog.csv Decoder
+        </h1>
+        <FileInput onFileLoaded={handleFileLoaded} />
+        <ul style={inter.style}>
+          {
+            logs.map((log, index) => {
+              return <li key={index}>{
+                log.type === 'button' ?
+                  `TIC -> SB: ${log.which} button ${log.value ? 'pressed' : 'released'}` :
+                log.type === 'power' ?
+                  `TIC -> SB: power ${log.value ? 'on' : 'off'} board` :
+                log.type === 'adc' ?
+                  `TIC -> SB: Reading DAC output` :
+                log.type === 'uart' ?
+                  log.direction === 'in' ?
+                    <span>
+                      TIC {'<'}- SB: Received 
+                      {
+                        log.value.startsWith('#') ? 
+                          <pre className='uart'>{`${JSON.stringify(log.value)} (${humanReadableUARTCommand(log.value, false)})`}</pre> : 
+                          log.value.split('').map((char, index) => {
+                            return <pre key={index} className='hex-code'>0x{char.charCodeAt(0).toString(16).padStart(2, '0').toUpperCase()}</pre>
+                          })
+                      }
+                    </span> :
+                    <span>
+                      {`TIC -> SB: Sent `}<pre className='uart'>{`${JSON.stringify(log.value)} (${humanReadableUARTCommand(log.value, true)})`}</pre>
+                    </span> :
+                log.type === 'pwm' ?
+                  `TIC -> SB: Reading PWM output` :
+                log.type === 'regulator-adc' ?
+                  `TIC -> SB: Reading regulator voltages` :
+                  <span className='entry-unknown'>{`TIC -> SB: Unknown command `}<pre className='hex-code'>0x{log.value.toString(16).padStart(2, '0').toUpperCase()}</pre></span>
+              }</li>
+            })
+          }
+        </ul>
       </main>
     </>
   )
