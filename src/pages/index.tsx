@@ -131,9 +131,18 @@ export default function Home() {
                       {
                         log.value.startsWith('#') ? 
                           <pre className='uart'>{`${JSON.stringify(log.value)} (${humanReadableUARTCommand(log.value, false)})`}</pre> : 
-                          log.value.split('').map((char, index) => {
-                            return <pre key={index} className='hex-code'>0x{char.charCodeAt(0).toString(16).padStart(2, '0').toUpperCase()}</pre>
-                          })
+                          <>
+                          {
+                            log.value.split('').map((char, index) => {
+                              return <pre key={index} className='hex-code'>0x{char.charCodeAt(0).toString(16).padStart(2, '0').toUpperCase()}</pre>
+                            })
+                          }
+                          <pre>
+                          ({
+                            (log.value.charCodeAt(5) / 0xFF * 3.3).toFixed(3)
+                          }V DAC output)
+                          </pre>
+                          </>
                       }
                     </span> :
                     <span>
